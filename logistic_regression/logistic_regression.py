@@ -1,5 +1,5 @@
 import numpy as np
-from sgd import StochasticGradientDescent
+from sgld import StochasticGradientLangevinDynamics
 
 
 class LogisticRegression:
@@ -18,7 +18,7 @@ class LogisticRegression:
     """
 
 
-    def __init__(X_train,X_test,y_train,y_test)
+    def __init__(self,X_train,X_test,y_train,y_test):
         """
         Initialise the logistic regression object.
 
@@ -28,21 +28,22 @@ class LogisticRegression:
         y_train - vector of response variables for training (assumes numpy array of floats)
         y_train - vector of response variables for testing (assumes numpy array of floats)
         """
+        np.seterr( over = 'raise' )
         self.X = X_train
         self.y = y_train
         self.X_test = X_test
         self.y_test = y_test
 
         # Set dimension constants
-        self.N = self.y.shape
+        self.N = self.X.shape[0]
         self.d = self.X.shape[1]
-        self.test_size = y_test.shape
+        self.test_size = self.X_test.shape[0]
         
         # Initialise parameters
         self.beta = np.zeros(self.d)
 
 
-    def fit(self,stepsize,n_iters=10**4,minibatch_size=4000):
+    def fit(self,stepsize,n_iters=10**4,minibatch_size=500):
         """
         Fit Bayesian logistic regression model using train and test set.
 
@@ -53,14 +54,13 @@ class LogisticRegression:
         n_iters - number of iterations of stochastic gradient descent (optional)
         minibatch_size - minibatch size in stochastic gradient descent (optional)
         """
-        sgd = StochasticGradientLangevinDynamics(self,stepsize,minibatch_size)
+        sgld = StochasticGradientLangevinDynamics(self,stepsize,minibatch_size,n_iters)
         print "{0}\t{1}".format( "iteration", "Test log loss" )
-        for i in range(n_iters):
+        for sgld.iter in range(1,n_iters+1):
             # Every so often output log loss on test set and progress
-            if i % 10 == 0:
-                print "{0}\t\t{1}".format( i, self.rmse() )
-            sgd.update(self)
-            sgd.iter += 1
+            if sgld.iter % 100 == 0:
+                print "{0}\t\t{1}".format( sgld.iter, self.logloss() )
+            sgld.update(self)
 
 
     def logloss(self):
@@ -68,7 +68,9 @@ class LogisticRegression:
         logloss = 0
         for i in range(self.test_size):
             y = self.y_test[i]
-            p = 1 / ( 1 + np.dot( self.beta, self.X_test[i,:] ) )
+            x = np.squeeze( np.copy( self.X_test[i,:] ) )
+            p = 1 / ( 1 + np.dot( self.beta, x ) )
+            print y, p
             logloss -= 1 / self.test_size * ( y * np.log( p ) + ( 1 - y ) * np.log( 1 - p ) )
         return logloss
 
@@ -86,14 +88,19 @@ class LogisticRegression:
         dlogbeta = np.zeros( self.d )
 
         # Calculate sum of gradients at each point in the minibatch
-        for i in sgd.minibatch:
-            x = self.X[i,:]
+        for i in sgld.minibatch:
+            x = np.squeeze( np.copy( self.X[i,:] ) )
             y = self.y[i]
             # Calculate gradient of the log density at current point, use to update dlogbeta
-            dlogbeta += 1 / ( 1 + np.exp( y * np.dot( self.beta, x ) ) ) * y * x
+            # Handle overflow gracefully by catching numpy's error
+            # (seterr was defined at start of class)
+            try:
+                dlogbeta += 1 / ( 1 + np.exp( y * np.dot( self.beta, x ) ) ) * y * x
+            except FloatingPointError:
+                dlogbeta += 0
 
         # Adjust log density gradients so they're unbiased
-        dlogbeta *= self.N / sgd.minibatch_size
+        dlogbeta *= self.N / sgld.minibatch_size
         # Add gradient of log prior (assume Laplace prior with scale 1)
         dlogbeta -= np.sign(self.beta)
         return dlogbeta
