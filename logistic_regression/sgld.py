@@ -23,7 +23,7 @@ class StochasticGradientLangevinDynamics:
         self.epsilon = epsilon
         # Set the minibatch size
         self.minibatch_size = minibatch_size
-        self.minibatch = np.random.choice( np.arange( lr.N ), self.minibatch_size, replace = False )
+        self.sample_minibatch(lr)
         # Hold number of iterations so far
         self.iter = 1
         self.output = np.zeros( ( n_iter, lr.d ) )
@@ -36,12 +36,15 @@ class StochasticGradientLangevinDynamics:
         Parameters:
         lr - LogisticRegression object
         """
-        # Sample the next minibatch
-        self.minibatch = np.random.choice( np.arange( lr.N ), self.minibatch_size, replace = False )
-
+        self.sample_minibatch(lr)
         # Calculate gradients at current point
         dlogbeta = lr.dlogpost(self)
 
         # Update parameters using SGD
         eta = np.random.normal( scale = self.epsilon )
         lr.beta += self.epsilon / 2 * dlogbeta + eta
+
+
+    def sample_minibatch(self,lr):
+        """Sample the next minibatch"""
+        self.minibatch = np.random.choice( np.arange( lr.N ), self.minibatch_size, replace = False )

@@ -24,11 +24,12 @@ class LogisticRegression:
 
         Parameters:
         X_train - matrix of explanatory variables for training (assumes numpy array of floats)
-        X_test - matrix of explanatory variables for testing (assumes numpy array of floats)
-        y_train - vector of response variables for training (assumes numpy array of floats)
-        y_train - vector of response variables for testing (assumes numpy array of floats)
+        X_test - matrix of explanatory variables for testing (assumes numpy array of ints)
+        y_train - vector of response variables for training (assumes numpy array of ints)
+        y_train - vector of response variables for testing (assumes numpy array of ints)
         """
-        np.seterr( over = 'raise' )
+        # Set error to be raised if there's an over/under flow
+        np.seterr( over = 'raise', under = 'raise' )
         self.X = X_train
         self.y = y_train
         self.X_test = X_test
@@ -41,6 +42,8 @@ class LogisticRegression:
         
         # Initialise parameters
         self.beta = np.zeros(self.d)
+        self.sample = None
+        self.training_loss = []
 
 
     def fit(self,stepsize,n_iters=10**4,minibatch_size=500):
@@ -54,13 +57,23 @@ class LogisticRegression:
         n_iters - number of iterations of stochastic gradient descent (optional)
         minibatch_size - minibatch size in stochastic gradient descent (optional)
         """
+        # Holds log loss values once fitted
+        self.training_loss = []
+        # Number of iterations before the logloss is stored
+        self.loss_thinning = 100
+        # Initialize sample storage
+        self.sample = np.zeros( ( n_iters, self.d ) )
+
         sgld = StochasticGradientLangevinDynamics(self,stepsize,minibatch_size,n_iters)
         print "{0}\t{1}".format( "iteration", "Test log loss" )
         for sgld.iter in range(1,n_iters+1):
-            # Every so often output log loss on test set and progress
-            if sgld.iter % 100 == 0:
-                print "{0}\t\t{1}".format( sgld.iter, self.logloss() )
+            # Every so often output log loss on test set and store 
+            if sgld.iter % self.loss_thinning == 0:
+                current_loss = self.logloss()
+                self.training_loss.append( current_loss )
+                print "{0}\t\t{1}".format( sgld.iter, current_loss )
             sgld.update(self)
+            self.sample[(sgld.iter-1),:] = self.beta
 
 
     def logloss(self):
@@ -69,9 +82,8 @@ class LogisticRegression:
         for i in range(self.test_size):
             y = self.y_test[i]
             x = np.squeeze( np.copy( self.X_test[i,:] ) )
-            p = 1 / ( 1 + np.dot( self.beta, x ) )
-            print y, p
-            logloss -= 1 / self.test_size * ( y * np.log( p ) + ( 1 - y ) * np.log( 1 - p ) )
+            p = 1 / ( 1 + np.exp( - np.dot( self.beta, x ) ) )
+            logloss -= 1 / float(self.test_size) * ( y * np.log( p ) + ( 1 - y ) * np.log( 1 - p ) )
         return logloss
 
 
@@ -94,10 +106,8 @@ class LogisticRegression:
             # Calculate gradient of the log density at current point, use to update dlogbeta
             # Handle overflow gracefully by catching numpy's error
             # (seterr was defined at start of class)
-            try:
-                dlogbeta += 1 / ( 1 + np.exp( y * np.dot( self.beta, x ) ) ) * y * x
-            except FloatingPointError:
-                dlogbeta += 0
+            
+            dlogbeta += ( y - 1 / ( 1 + np.exp( - np.dot( self.beta, x ) ) ) ) * x
 
         # Adjust log density gradients so they're unbiased
         dlogbeta *= self.N / sgld.minibatch_size
