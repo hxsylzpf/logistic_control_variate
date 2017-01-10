@@ -1,5 +1,6 @@
 import numpy as np
-from sgld import StochasticGradientLangevinDynamics
+from zvsgld import ZVSGLD
+from sklearn.metrics import log_loss
 
 
 class LogisticRegression:
@@ -40,9 +41,13 @@ class LogisticRegression:
         self.d = self.X.shape[1]
         self.test_size = self.X_test.shape[0]
         
-        # Initialise parameters
+        # Initialise containers
+        # Logistic regression parameters (assume bias term encoded in design matrix)
         self.beta = np.zeros(self.d)
+        # Storage for beta samples and gradients of the log posterior during fitting
         self.sample = None
+        self.grad_sample = None
+        # Storage for logloss values during fitting
         self.training_loss = []
 
 
@@ -63,8 +68,9 @@ class LogisticRegression:
         self.loss_thinning = 100
         # Initialize sample storage
         self.sample = np.zeros( ( n_iters, self.d ) )
+        self.grad_sample = np.zeros( ( n_iters, self.d ) )
 
-        sgld = StochasticGradientLangevinDynamics(self,stepsize,minibatch_size,n_iters)
+        sgld = ZVSGLD(self,stepsize,minibatch_size,n_iters)
         print "{0}\t{1}".format( "iteration", "Test log loss" )
         for sgld.iter in range(1,n_iters+1):
             # Every so often output log loss on test set and store 
@@ -78,13 +84,25 @@ class LogisticRegression:
 
     def logloss(self):
         """Calculate the log loss on the test set, used to check convergence"""
-        logloss = 0
+        y_pred = np.zeros(self.test_size, dtype = int)
         for i in range(self.test_size):
-            y = self.y_test[i]
             x = np.squeeze( np.copy( self.X_test[i,:] ) )
-            p = 1 / ( 1 + np.exp( - np.dot( self.beta, x ) ) )
-            logloss -= 1 / float(self.test_size) * ( y * np.log( p ) + ( 1 - y ) * np.log( 1 - p ) )
-        return logloss
+            y_pred[i] = int( np.dot( self.beta, x ) >= 0.0 )
+        return log_loss( self.y_test, y_pred )
+
+
+    def loglossp(self,beta):
+        """
+        Calculate the log loss on the test set for specified parameter values beta
+        
+        Parameters:
+        beta - a vector of logistic regression parameters (float array)
+        """
+        y_pred = np.zeros(self.test_size, dtype = int)
+        for i in range(self.test_size):
+            x = np.squeeze( np.copy( self.X_test[i,:] ) )
+            y_pred[i] = int( np.dot( beta, x ) >= 0.0 )
+        return log_loss( self.y_test, y_pred )
 
 
     def dlogpost(self,sgld):
@@ -114,3 +132,8 @@ class LogisticRegression:
         # Add gradient of log prior (assume Laplace prior with scale 1)
         dlogbeta -= np.sign(self.beta)
         return dlogbeta
+
+
+    def postprocess(self):
+        sgld = ZVSGLD(self,0.01,100,10**4)
+        sgld.control_variates(self)

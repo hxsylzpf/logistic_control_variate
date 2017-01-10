@@ -43,5 +43,9 @@ class Synthetic:
 
 
 if __name__ == '__main__':
-    example = Synthetic()
-    example.fit(0.000001)
+    example = Synthetic( seed = 13 )
+    example.fit(0.0001)
+#    example.lr.sample.dump(example.data_dir + 'temp_postprocess/sample.pkl')
+#    example.lr.grad_sample.dump(example.data_dir + 'temp_postprocess/grad_sample.pkl')
+#    lr = LogisticRegression( example.X_train, example.X_test, example.y_train, example.y_test )
+#    lr.postprocess()
