@@ -1,4 +1,5 @@
 import os
+import sys
 import pkg_resources
 import urllib
 import numpy as np
@@ -19,13 +20,13 @@ class CoverType:
     def __init__(self):
         """Load data into the object"""
         self.data_dir = pkg_resources.resource_filename('logistic_control_variate', 'data/')
+        self.lr = None
         # Try opening the data, if it's not available, download it.
         try:
             np.load( self.data_dir + 'cover_type/X_train.dat' )
         except IOError:
             raw = self.download_data()
             self.X_train, self.X_test, self.y_train, self.y_test = self.preprocess()
-            print self.y_test
             self.X_train.dump( self.data_dir + 'cover_type/X_train.dat' )
             self.X_test.dump( self.data_dir + 'cover_type/X_test.dat' )
             self.y_train.dump( self.data_dir + 'cover_type/y_train.dat' )
@@ -35,7 +36,6 @@ class CoverType:
             self.X_test = np.load( self.data_dir + 'cover_type/X_test.dat' )
             self.y_train = np.load( self.data_dir + 'cover_type/y_train.dat' )
             self.y_test = np.load( self.data_dir + 'cover_type/y_test.dat' )
-            print self.X_train
 
 
     def fit(self,stepsize):
@@ -48,8 +48,8 @@ class CoverType:
         Returns:
         lr - fitted LogisticRegression object
         """
-        lr = LogisticRegression( self.X_train, self.X_test, self.y_train, self.y_test )
-        lr.fit(stepsize)
+        self.lr = LogisticRegression( self.X_train, self.X_test, self.y_train, self.y_test )
+        self.lr.fit(stepsize, n_iters = 10**4)
 
 
     def download_data(self):
@@ -79,6 +79,18 @@ class CoverType:
         return X_train, X_test, y_train.astype(int), y_test.astype(int)
 
 
+    def simulation(self,stepsize):
+        self.fit(stepsize)
+        llold, llnew = self.lr.postprocess()
+        if not os.path.exists( self.data_dir + 'simulations/{0}'.format(stepsize) ):
+            os.makedirs( self.data_dir + 'simulations/{0}'.format(stepsize) )
+        np.savetxt( self.data_dir + 'simulations/{0}/old.dat'.format(stepsize), llold )
+        np.savetxt( self.data_dir + 'simulations/{0}/new.dat'.format(stepsize), llnew )
+
+
 if __name__ == '__main__':
+    stepsizes = [1e-3, 5e-4, 1e-4, 5e-5, 1e-5]
+    index = int( sys.argv[1] ) - 1
+    stepsize = stepsizes[index]
     example = CoverType()
-    example.fit(0.0001)
+    example.simulation(stepsize)

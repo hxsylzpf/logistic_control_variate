@@ -1,5 +1,6 @@
 import os
 import pkg_resources
+import pickle
 import urllib
 import numpy as np
 import bz2
@@ -42,10 +43,18 @@ class Synthetic:
                 X, y, test_size = 2000, random_state = seed )
 
 
+    def log_loss_objective( self, stepsize_mat ):
+        n_rows = stepsize_mat.shape[0]
+        outputs = np.zeros( stepsize_mat.shape )
+        for i in range(n_rows):
+            stepsize_curr = stepsize_mat[i,0]
+            try:
+                self.fit(stepsize_curr,10**3)
+            except FloatingPointError:
+                outputs[i,0] = 8.0
+            outputs[i,0] = np.array( self.lr.training_loss ).mean()
+        return outputs
+
+
 if __name__ == '__main__':
-    example = Synthetic( seed = 13 )
-    example.fit(0.0001)
-#    example.lr.sample.dump(example.data_dir + 'temp_postprocess/sample.pkl')
-#    example.lr.grad_sample.dump(example.data_dir + 'temp_postprocess/grad_sample.pkl')
-#    lr = LogisticRegression( example.X_train, example.X_test, example.y_train, example.y_test )
-#    lr.postprocess()
+    print log_loss_objective( 0.05, 13 )

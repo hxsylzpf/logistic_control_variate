@@ -46,8 +46,6 @@ class Synthetic:
 if __name__ == '__main__':
     filename = pkg_resources.resource_filename(
             'logistic_control_variate','data/hmc_temp/fitted.pkl' )
-#    with open( filename ) as hmc_in:
-#        lr = pickle.load( hmc_in )
-#    lr.postprocess()
-    example = Synthetic( seed = 13 )
-    lr = example.fit()
+    with open( filename ) as hmc_in:
+        lr = pickle.load( hmc_in )
+    lr.postprocess()

@@ -1,28 +1,26 @@
 import numpy as np
-import sys
 import pkg_resources
 from sklearn.metrics import log_loss
 
 
-class ZVSGLD:
+class CVSGLD:
     """
-    Methods to apply SGLD with zero variance control variate postprocessing for logistic regression
+    Methods to apply SGLD with control variates to reduce gradient noise for logistic regression
 
     SGLD stands for stochastic gradient Langevin dynamics and is a MCMC method for large datasets.
-    Zero variance control variates are used to improve the efficiency of the sample.
+    The control variates are used to reduce the variance in the log posterior gradient estimate.
 
     SGLD notation used as in reference 1
-    Zero variance control variate notation used as in reference 2
     References:
         1. Stochastic gradient Langevin dynamics - 
                 http://people.ee.duke.edu/~lcarin/398_icmlpaper.pdf
-        2. Zero variance control variates for Hamiltonian Monte Carlo - 
-                https://projecteuclid.org/download/pdfview_1/euclid.ba/1393251772
+        2. Control variates for big data MCMC
+                https://arxiv.org/abs/1607.03188    
     """
     
     def __init__(self,lr,epsilon,minibatch_size,n_iter):
         """
-        Initialize the container for SGLD
+        Initialize the container for CVSGLD
 
         Parameters:
         lr - LogisticRegression object
@@ -83,33 +81,23 @@ class ZVSGLD:
         new_sample = np.zeros( lr.sample.shape )
 
         # Calculate covariance for each parameter
-        print "Calculating control variates..."
         for j in range(lr.d):
-            sys.stdout.write("{0} ".format(j))
-            sys.stdout.flush()
             cov_params = np.zeros(lr.d)
-            a_current = np.zeros(lr.d)
-            for i in range(lr.n_iters):
-                cov_params += 1 / float( lr.n_iters - 1 ) * ( 
-                        lr.sample[i,j] - sample_mean[j] ) * ( pot_energy[i,:] - grad_mean )
+            a_current = np.zeros( lr.d )
+            for i in range(self.n_iters):
+                cov_params += 1 / float( self.n_iters - 1 ) * ( 
+                        lr.sample[i,j] - sample_mean[j] ) * ( pot_energy[i,j] - grad_mean[j] )
             # Update sample for current dimension
             a_current = - np.matmul( var_grad_inv, cov_params )
-            for i in range(lr.n_iters):
+            for i in range(self.n_iters):
                 new_sample[i,j] = lr.sample[i,j] + np.dot( a_current, pot_energy[i,:] )
-        print
         # Compare new samples
-        sample_size = 100
-        random_points = np.random.choice( range(lr.n_iters), sample_size )
-        llold = np.zeros( sample_size )
-        llnew = np.zeros( sample_size )
-        print "Calculating new log loss values..."
-        for i,index in enumerate(random_points):
-            sys.stdout.write("{0} ".format(i))
-            sys.stdout.flush()
-            llold[i] = lr.loglossp( lr.sample[index,:] )
-            llnew[i] = lr.loglossp( new_sample[index,:] )
-        print
-        return llold, llnew
+        print np.cov( lr.sample )
+        print np.cov( new_sample )
+
+
+                
+
 
 
     def sample_minibatch(self,lr):

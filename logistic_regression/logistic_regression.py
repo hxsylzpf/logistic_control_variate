@@ -49,6 +49,8 @@ class LogisticRegression:
         self.grad_sample = None
         # Storage for logloss values during fitting
         self.training_loss = []
+        self.n_iters = None
+        self.fitter = None
 
 
     def fit(self,stepsize,n_iters=10**4,minibatch_size=500):
@@ -67,19 +69,26 @@ class LogisticRegression:
         # Number of iterations before the logloss is stored
         self.loss_thinning = 100
         # Initialize sample storage
-        self.sample = np.zeros( ( n_iters, self.d ) )
-        self.grad_sample = np.zeros( ( n_iters, self.d ) )
+        self.n_iters = n_iters
+        self.sample = np.zeros( ( self.n_iters, self.d ) )
+        self.grad_sample = np.zeros( ( self.n_iters, self.d ) )
 
-        sgld = ZVSGLD(self,stepsize,minibatch_size,n_iters)
+        self.fitter = ZVSGLD(self,stepsize,minibatch_size,n_iters)
+        # Burn in chain
+        print "Fitting burn-in..."
+        burn_in = int( 0.1*n_iters )
+        for i in range(burn_in):
+            self.fitter.update(self)
+        print "Fitting chain..."
         print "{0}\t{1}".format( "iteration", "Test log loss" )
-        for sgld.iter in range(1,n_iters+1):
+        for self.fitter.iter in range(1,n_iters+1):
             # Every so often output log loss on test set and store 
-            if sgld.iter % self.loss_thinning == 0:
+            if self.fitter.iter % self.loss_thinning == 0:
                 current_loss = self.logloss()
                 self.training_loss.append( current_loss )
-                print "{0}\t\t{1}".format( sgld.iter, current_loss )
-            sgld.update(self)
-            self.sample[(sgld.iter-1),:] = self.beta
+                print "{0}\t\t{1}".format( self.fitter.iter, current_loss )
+            self.fitter.update(self)
+            self.sample[(self.fitter.iter-1),:] = self.beta
 
 
     def logloss(self):
@@ -135,5 +144,4 @@ class LogisticRegression:
 
 
     def postprocess(self):
-        sgld = ZVSGLD(self,0.01,100,10**4)
-        sgld.control_variates(self)
+        return self.fitter.control_variates(self)

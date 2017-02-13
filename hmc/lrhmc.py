@@ -93,29 +93,31 @@ class LRHMC:
         Modifies:
         self.sample - updates with postprocessed chain
         """
-        sample_mean = np.mean( self.sample, axis = 0 )
-        grad_mean = np.mean( self.logpost_sample, axis = 0 )
-        var_grad = np.cov( self.logpost_sample, rowvar = 0 )
+        pot_energy = - 1 / 2.0 * lr.grad_sample
+        sample_mean = np.mean( lr.sample, axis = 0 )
+        grad_mean = np.mean( pot_energy, axis = 0 )
+        var_grad_inv = np.linalg.inv( np.cov( pot_energy, rowvar = 0 ) )
+        n_init = 10**3
 
         # Initialise variables
-        out_sample = np.zeros( self.sample.shape )
-        a = np.zeros(self.d)
-        current_cov = np.zeros(self.d)
+        cov_params = np.zeros( lr.d )
+        a_current = np.zeros( lr.d )
+        new_sample = np.zeros( lr.sample.shape )
 
-        # Calculate new sample once control variates have been calculated
-        for j in range(self.d):
-            current_cov = np.zeros(self.d)
-            for i in range(self.n_iters):
-                current_cov += 1 / float(self.n_iters-1) * ( 
-                        self.sample[i,j] - sample_mean[j] )*( self.logpost_sample[i,:] - grad_mean )
-            a = - np.matmul( np.linalg.inv( var_grad ), current_cov )
-            for i in range(self.n_iters):
-                out_sample[i,j] = self.sample[i,j] + np.dot( a, self.logpost_sample[i,:] )
-
-        # Calculate new log loss at a subsample of points
-        oldll = self.logloss(self.sample)
-        newll = self.logloss(out_sample)
-        print "Old log loss: {0}\tNew log loss: {1}".format( oldll, newll )
+        # Calculate covariance for each parameter
+        for j in range(lr.d):
+            cov_params = np.zeros(lr.d)
+            a_current = np.zeros(lr.d)
+            for i in range(n_init):
+                cov_params += 1 / float( n_init - 1 ) * ( 
+                        lr.sample[i,j] - sample_mean[j] ) * ( pot_energy[i,j] - grad_mean[j] )
+            # Update sample for current dimension
+            a_current = - np.matmul( var_grad_inv, cov_params )
+            for i in range(lr.n_iters):
+                new_sample[i,j] = lr.sample[i,j] + np.dot( a_current, pot_energy[i,:] )
+        # Compare new samples
+        print np.var( new_sample[n_init:,1] )
+        print np.var( lr.sample[n_init:,1] )
 
 
     def logloss(self,sample):
