@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 import pkg_resources
 import urllib
 import numpy as np
@@ -36,6 +37,13 @@ class CoverType:
             self.X_test = np.load( self.data_dir + 'cover_type/X_test.dat' )
             self.y_train = np.load( self.data_dir + 'cover_type/y_train.dat' )
             self.y_test = np.load( self.data_dir + 'cover_type/y_test.dat' )
+    
+    
+    def truncate(self,train_size,test_size):
+        self.X_train = self.X_train[:train_size,:]
+        self.y_train = self.y_train[:train_size]
+        self.X_test = self.X_test[:test_size,:]
+        self.y_test = self.y_test[:test_size]
 
 
     def fit(self,stepsize):
@@ -79,18 +87,40 @@ class CoverType:
         return X_train, X_test, y_train.astype(int), y_test.astype(int)
 
 
-    def simulation(self,stepsize):
+    def simulation(self,stepsize,current_seed):
         self.fit(stepsize)
+        if not os.path.exists( self.data_dir + 'simulations/{0}/{1}'.format(stepsize,current_seed) ):
+            os.makedirs( self.data_dir + 'simulations/{0}/{1}'.format(stepsize,current_seed) )
         llold, llnew = self.lr.postprocess()
-        if not os.path.exists( self.data_dir + 'simulations/{0}'.format(stepsize) ):
-            os.makedirs( self.data_dir + 'simulations/{0}'.format(stepsize) )
-        np.savetxt( self.data_dir + 'simulations/{0}/old.dat'.format(stepsize), llold )
-        np.savetxt( self.data_dir + 'simulations/{0}/new.dat'.format(stepsize), llnew )
+        print( np.mean( llold ) )
+        print( np.mean( llnew ) )
+        print( np.cov( llold ) )
+        print( np.cov( llnew ) )
+        np.savetxt( self.data_dir + 'simulations/{0}/{1}/old.dat'.format(stepsize,current_seed), llold )
+        np.savetxt( self.data_dir + 'simulations/{0}/{1}/new.dat'.format(stepsize,current_seed), llnew )
+
+    
+    def postprocess(self):
+        llold, llnew = self.lr.postprocess()
+        print( np.mean( llold ) )
+        print( np.mean( llnew ) )
+        print( np.cov( llold ) )
+        print( np.cov( llnew ) )
+        np.savetxt( self.data_dir + 'simulations/{0}/{1}/old.dat'.format(stepsize,current_seed), llold )
+        np.savetxt( self.data_dir + 'simulations/{0}/{1}/new.dat'.format(stepsize,current_seed), llnew )
 
 
 if __name__ == '__main__':
-    stepsizes = [1e-3, 5e-4, 1e-4, 5e-5, 1e-5]
-    index = int( sys.argv[1] ) - 1
-    stepsize = stepsizes[index]
+    print "Simulation started!"
     example = CoverType()
-    example.simulation(stepsize)
+    stepsizes = [1e-6, 1e-5, 3e-5, 7e-5, 1e-4] 
+    step_index = int( sys.argv[1] ) - 1
+    stepsize = stepsizes[step_index]
+    current_seed = sys.argv[2]
+    seed(current_seed)
+    example.simulation(stepsize,current_seed)
+#    with open( example.data_dir + 'simulations/{0}/{1}/lr.pkl'.format(stepsize,current_seed), 'w' ) as outfile:
+#        pickle.dump( example, outfile )
+#    with open( example.data_dir + 'simulations/{0}/{1}/lr.pkl'.format(stepsize,current_seed), 'r' ) as infile:
+#        example = pickle.load( infile )
+#    example.postprocess()

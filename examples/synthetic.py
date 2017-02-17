@@ -36,9 +36,9 @@ class Synthetic:
 
     def generate_data(self,seed):
         """Generate synthetic dataset using standard methods in scikit-learn"""
-        X, y = make_classification( n_samples = 7000, random_state = seed )
+        X, y = make_classification( n_samples = 12000, random_state = seed, n_features = 40, class_sep = 0.4, n_clusters_per_class = 2, weights = [0.2,0.8] )
         # Add bias term
-        X = np.concatenate( ( np.ones( ( 7000, 1 ) ), X ), axis = 1 )
+        X = np.concatenate( ( np.ones( ( 12000, 1 ) ), X ), axis = 1 )
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split( 
                 X, y, test_size = 2000, random_state = seed )
 
@@ -57,4 +57,10 @@ class Synthetic:
 
 
 if __name__ == '__main__':
-    print log_loss_objective( 0.05, 13 )
+    example = Synthetic( 13 )
+    example.fit(1e-6)
+    llold, llnew = example.lr.postprocess()
+    print( np.mean( llold ) )
+    print( np.mean( llnew ) )
+    print( np.cov( llold ) )
+    print( np.cov( llnew ) )

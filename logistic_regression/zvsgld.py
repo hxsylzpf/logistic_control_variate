@@ -75,7 +75,12 @@ class ZVSGLD:
         pot_energy = - 1 / 2.0 * lr.grad_sample
         sample_mean = np.mean( lr.sample, axis = 0 )
         grad_mean = np.mean( pot_energy, axis = 0 )
-        var_grad_inv = np.linalg.inv( np.cov( pot_energy, rowvar = 0 ) )
+        var_grad = np.cov( pot_energy, rowvar = 0 )
+        # Add jitter
+        print "adding jitter..."
+        var_grad += 1e-4*np.mean(np.diag(var_grad))*np.eye(lr.d)
+        var_grad_inv = np.linalg.inv( var_grad )
+        print "------------------------------"
 
         # Initialise variables
         cov_params = np.zeros( lr.d )
@@ -98,7 +103,7 @@ class ZVSGLD:
                 new_sample[i,j] = lr.sample[i,j] + np.dot( a_current, pot_energy[i,:] )
         print
         # Compare new samples
-        sample_size = 100
+        sample_size = 20
         random_points = np.random.choice( range(lr.n_iters), sample_size )
         llold = np.zeros( sample_size )
         llnew = np.zeros( sample_size )
